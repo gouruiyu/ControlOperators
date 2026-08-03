@@ -24,8 +24,6 @@ import bvh
 
 ffi = cffi.FFI()
 
-mode = 'cuda' if torch.cuda.is_available() else 'cpu'
- 
 #----------------------------------------------------------------------------------
 # Camera
 #----------------------------------------------------------------------------------
@@ -973,12 +971,12 @@ def main():
             # build flow model 
             denoiser_network = networks.SkipCatMLP(inp=(Z.shape[1]*2 + control_encoder.output_size() + 1), out=Z.shape[1], hidden=1024, depth=10)
             
-            autoencoder_data = torch.load(autoencoder_path, weights_only=True, map_location=mode)
+            autoencoder_data = torch.load(autoencoder_path, weights_only=True, map_location='cpu')
             encoder_network.load_state_dict(autoencoder_data['encoder'])
             decoder_network.load_state_dict(autoencoder_data['decoder'])
             
             # Load Null controller and denoiser
-            controller_data = torch.load(controller_path, weights_only=True, map_location=mode)
+            controller_data = torch.load(controller_path, weights_only=True, map_location='cpu')
             control_encoder.root.load_state_dict(controller_data['control_encoder'])
             denoiser_network.load_state_dict(controller_data['denoiser'])
             print(f"Loaded controller from {controller_path}")
