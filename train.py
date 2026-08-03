@@ -711,7 +711,7 @@ if __name__ == "__main__":
         
         print(f"Loaded pre-trained auto-encoder from {autoencoder_path}")
 
-        autoencoder_data = torch.load(autoencoder_path, weights_only=True)
+        autoencoder_data = torch.load(autoencoder_path, weights_only=True, map_location=device)
         encoder_network.load_state_dict(autoencoder_data['encoder'])
         decoder_network.load_state_dict(autoencoder_data['decoder'])
         
@@ -897,7 +897,7 @@ if __name__ == "__main__":
         
         print(f"Loaded pre-trained controller from {control_encoder_path}")
 
-        controller_data = torch.load(control_encoder_path, weights_only=True)
+        controller_data = torch.load(control_encoder_path, weights_only=True, map_location=device)
         control_encoder_network.load_state_dict(controller_data['control_encoder'])
         denoiser_network.load_state_dict(controller_data['denoiser'])
         
