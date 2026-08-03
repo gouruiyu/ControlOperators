@@ -4,6 +4,7 @@ Based on https://github.com/orangeduck/GenoViewPython/blob/main/genoview.py
 """
 
 import struct
+import sys
 from pathlib import Path
 import numpy as np
 import torch
@@ -141,7 +142,10 @@ def BeginShadowMap(target, shadowLight):
 
     # Setup Camera view
     matView = MatrixLookAt(shadowLight.position, shadowLight.target, shadowLight.up)
-    rlMultMatrixf(MatrixToFloatV(matView).v)      # Multiply modelview matrix by view matrix (camera)
+    # The float16 must be held in a variable: passing MatrixToFloatV(...).v directly
+    # lets the temporary be freed before rlMultMatrixf reads it (renders nothing on macOS)
+    matViewF = MatrixToFloatV(matView)
+    rlMultMatrixf(matViewF.v)      # Multiply modelview matrix by view matrix (camera)
 
     rlEnableDepthTest()            # Enable DEPTH_TEST for 3D    
 
@@ -158,6 +162,20 @@ def EndShadowMap():
     rlDisableDepthTest()            # Disable DEPTH_TEST for 2D
 
     EndTextureMode()
+
+
+def LoadShaderCompat(vsPath, fsPath):
+    # macOS's OpenGL driver lacks GL_ARB_ES3_compatibility, so '#version 300 es'
+    # shaders fail to compile there. The same source is valid desktop GLSL 330
+    # (precision qualifiers are legal no-ops), so swap the version directive.
+    if sys.platform != 'darwin':
+        return LoadShader(vsPath, fsPath)
+
+    def patch(path):
+        src = Path(path.decode()).read_text()
+        return src.replace('#version 300 es', '#version 330', 1).encode()
+
+    return LoadShaderFromMemory(patch(vsPath), patch(fsPath))
 
 
 def SetShaderValueShadowMap(shader, locIndex, target):
@@ -266,7 +284,9 @@ def BeginGBuffer(target, camera):
 
     # Setup Camera view
     matView = MatrixLookAt(camera.position, camera.target, camera.up)
-    rlMultMatrixf(MatrixToFloatV(matView).v)      # Multiply modelview matrix by view matrix (camera)
+    # See BeginShadowMap: the float16 must outlive the rlMultMatrixf call
+    matViewF = MatrixToFloatV(matView)
+    rlMultMatrixf(matViewF.v)      # Multiply modelview matrix by view matrix (camera)
 
     rlEnableDepthTest()            # Enable DEPTH_TEST for 3D
 
@@ -278,6 +298,12 @@ def EndGBuffer(windowWidth, windowHeight):
     rlDisableDepthTest()            # Disable DEPTH_TEST for 2D
     rlActiveDrawBuffers(1) 
     rlDisableFramebuffer()          # Disable render target (fbo)
+
+    # Restore the default framebuffer's viewport in render pixels; on HiDPI (macOS
+    # retina) this is larger than the window size the GBuffer pass set above
+    rlViewport(0, 0, GetRenderWidth(), GetRenderHeight())
+    rlSetFramebufferWidth(GetRenderWidth())
+    rlSetFramebufferHeight(GetRenderHeight())
 
     rlMatrixMode(RL_PROJECTION)         # Switch to projection matrix
     rlPopMatrix()                   # Restore previous matrix (projection) from matrix stack
@@ -773,27 +799,27 @@ def main():
     SetTargetFPS(60)
     rlSetClipPlanes(0.01, 50.0)
     
-    basicShader = LoadShader(RES("basic.vs"), RES("basic.fs"))
+    basicShader = LoadShaderCompat(RES("basic.vs"), RES("basic.fs"))
     basicShaderSpecularity = GetShaderLocation(basicShader, b"specularity")
     basicShaderGlossiness = GetShaderLocation(basicShader, b"glossiness")
     basicShaderCamClipNear = GetShaderLocation(basicShader, b"camClipNear")
     basicShaderCamClipFar = GetShaderLocation(basicShader, b"camClipFar")
     
-    skinnedBasicShader = LoadShader(RES("skinnedBasic.vs"), RES("basic.fs"))
+    skinnedBasicShader = LoadShaderCompat(RES("skinnedBasic.vs"), RES("basic.fs"))
     skinnedBasicShaderSpecularity = GetShaderLocation(skinnedBasicShader, b"specularity")
     skinnedBasicShaderGlossiness = GetShaderLocation(skinnedBasicShader, b"glossiness")
     skinnedBasicShaderCamClipNear = GetShaderLocation(skinnedBasicShader, b"camClipNear")
     skinnedBasicShaderCamClipFar = GetShaderLocation(skinnedBasicShader, b"camClipFar")
     
-    shadowShader = LoadShader(RES("shadow.vs"), RES("shadow.fs"))
+    shadowShader = LoadShaderCompat(RES("shadow.vs"), RES("shadow.fs"))
     shadowShaderLightClipNear = GetShaderLocation(shadowShader, b"lightClipNear")
     shadowShaderLightClipFar = GetShaderLocation(shadowShader, b"lightClipFar")
     
-    skinnedShadowShader = LoadShader(RES("skinnedShadow.vs"), RES("shadow.fs"))
+    skinnedShadowShader = LoadShaderCompat(RES("skinnedShadow.vs"), RES("shadow.fs"))
     skinnedShadowShaderLightClipNear = GetShaderLocation(skinnedShadowShader, b"lightClipNear")
     skinnedShadowShaderLightClipFar = GetShaderLocation(skinnedShadowShader, b"lightClipFar")
     
-    ssaoShader = LoadShader(RES("post.vs"), RES("ssao.fs"))
+    ssaoShader = LoadShaderCompat(RES("post.vs"), RES("ssao.fs"))
     ssaoShaderGBufferNormal = GetShaderLocation(ssaoShader, b"gbufferNormal")
     ssaoShaderGBufferDepth = GetShaderLocation(ssaoShader, b"gbufferDepth")
     ssaoShaderCamView = GetShaderLocation(ssaoShader, b"camView")
@@ -809,7 +835,7 @@ def main():
     ssaoShaderLightClipFar = GetShaderLocation(ssaoShader, b"lightClipFar")
     ssaoShaderLightDir = GetShaderLocation(ssaoShader, b"lightDir")
     
-    blurShader = LoadShader(RES("post.vs"), RES("blur.fs"))
+    blurShader = LoadShaderCompat(RES("post.vs"), RES("blur.fs"))
     blurShaderGBufferNormal = GetShaderLocation(blurShader, b"gbufferNormal")
     blurShaderGBufferDepth = GetShaderLocation(blurShader, b"gbufferDepth")
     blurShaderInputTexture = GetShaderLocation(blurShader, b"inputTexture")
@@ -819,7 +845,7 @@ def main():
     blurShaderInvTextureResolution = GetShaderLocation(blurShader, b"invTextureResolution")
     blurShaderBlurDirection = GetShaderLocation(blurShader, b"blurDirection")
 
-    lightingShader = LoadShader(RES("post.vs"), RES("lighting.fs"))
+    lightingShader = LoadShaderCompat(RES("post.vs"), RES("lighting.fs"))
     lightingShaderGBufferColor = GetShaderLocation(lightingShader, b"gbufferColor")
     lightingShaderGBufferNormal = GetShaderLocation(lightingShader, b"gbufferNormal")
     lightingShaderGBufferDepth = GetShaderLocation(lightingShader, b"gbufferDepth")
@@ -837,7 +863,7 @@ def main():
     lightingShaderCamClipNear = GetShaderLocation(lightingShader, b"camClipNear")
     lightingShaderCamClipFar = GetShaderLocation(lightingShader, b"camClipFar")
 
-    fxaaShader = LoadShader(RES("post.vs"), RES("fxaa.fs"))
+    fxaaShader = LoadShaderCompat(RES("post.vs"), RES("fxaa.fs"))
     fxaaShaderInputTexture = GetShaderLocation(fxaaShader, b"inputTexture")
     fxaaShaderInvTextureResolution = GetShaderLocation(fxaaShader, b"invTextureResolution")
     
@@ -945,12 +971,12 @@ def main():
             # build flow model 
             denoiser_network = networks.SkipCatMLP(inp=(Z.shape[1]*2 + control_encoder.output_size() + 1), out=Z.shape[1], hidden=1024, depth=10)
             
-            autoencoder_data = torch.load(autoencoder_path, weights_only=True)
+            autoencoder_data = torch.load(autoencoder_path, weights_only=True, map_location='cpu')
             encoder_network.load_state_dict(autoencoder_data['encoder'])
             decoder_network.load_state_dict(autoencoder_data['decoder'])
             
             # Load Null controller and denoiser
-            controller_data = torch.load(controller_path, weights_only=True)
+            controller_data = torch.load(controller_path, weights_only=True, map_location='cpu')
             control_encoder.root.load_state_dict(controller_data['control_encoder'])
             denoiser_network.load_state_dict(controller_data['denoiser'])
             print(f"Loaded controller from {controller_path}")
