@@ -941,14 +941,14 @@ def main():
     else:
         try:
             # Load data
-            xdata = np.load(xnpz_path, allow_pickle=True)
+            xdata = np.load(xnpz_path)
             Xoffset = torch.as_tensor(xdata['Xoffset'], device='cpu', dtype=torch.float32)
             Xscale = torch.as_tensor(xdata['Xscale'], device='cpu', dtype=torch.float32)
             Xdist = torch.as_tensor(xdata['Xdist'], device='cpu', dtype=torch.float32)
             Xref_pos = xdata['Xref_pos']
             X_dim = len(Xoffset)
             
-            zdata = np.load(znpz_path, allow_pickle=True)
+            zdata = np.load(znpz_path)
             Z = zdata['Z']
             Zoffset = torch.as_tensor(zdata['Zoffset'], device='cpu', dtype=torch.float32)
             Zscale = torch.as_tensor(zdata['Zscale'], device='cpu', dtype=torch.float32)
@@ -957,7 +957,7 @@ def main():
             Zmax = torch.as_tensor(zdata['Zmax'], device='cpu', dtype=torch.float32)
             Z_dim = Z.shape[1]
             
-            database_data = np.load(database_path, allow_pickle=True)
+            database_data = np.load(database_path)
             nbones_database = database_data['positions'].shape[1]
             database_parents = database_data['parents']
             database_names = database_data['names']

@@ -527,7 +527,7 @@ if __name__ == "__main__":
     database_path = DATA_ROOT / "database.npz"
     if not database_path.exists():
         generate_database(dir=DATA_ROOT)
-    database = np.load(database_path, allow_pickle=True)
+    database = np.load(database_path)
     names = database['names']
     parents = database['parents']
     contacts = database['contacts'].astype(np.float32)
@@ -566,7 +566,7 @@ if __name__ == "__main__":
         
         print(f"Loaded preprocessed X.npz from {xnpz_path}")
         
-        data = np.load(xnpz_path, allow_pickle=True)
+        data = np.load(xnpz_path)
         X = data['X']
         Xref_pos = data['Xref_pos']
         Xoffset = data['Xoffset']
@@ -798,7 +798,7 @@ if __name__ == "__main__":
         
         print(f"Loaded preprocessed Z.npz from {znpz_path}")
         
-        data = np.load(znpz_path, allow_pickle=True)
+        data = np.load(znpz_path)
         Z = data['Z']
         Zoffset = data['Zoffset']
         Zscale = data['Zscale']
